@@ -5,7 +5,7 @@ Created on Fri Jun 24 15:47:53 2016
 @author: btek
 """
 
-from oct2py import octave
+# from oct2py import octave
 from numpy import random, fliplr, flipud, rot90, shape, mean
 from numpy import clip, stack, float32, sqrt, zeros, arange, ceil, uint8
 from skimage.transform import resize
@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 CROP_WIDTH_MAX = 5
 CROP_HEIGHT_MAX = 5
+MXSUBPLOTS = 36
 DEBUG_plot = True
 
 
@@ -24,25 +25,25 @@ DEBUG_plot = True
 MEANS_FILE = sio.loadmat('/home/btek/Dropbox/code/matlabcode/mitosis_code/amida_elm/amida_mitos_means_v2.mat')
 MEANS_ARR = MEANS_FILE['rgb_means']
 
-# load image processing package
-octave.pkg('load', 'image')
-
-# add path
-octave.addpath('/home/btek/Dropbox/code/matlabcode/utility')
-
-
-# call octave rotation method
-def generateRotatedSamples(img, numRotations):
-    return octave.generateRotatedData2(img, numRotations)
-
-
-def generateCroppedSamples(img, numCrops):
-    return octave.generateCroppedData(img, numCrops)
-
-
-def generateIntensitySamples(img, numInt):
-    return octave.generateIntensityNoise
-MEANS_ARR
+## load image processing package
+#octave.pkg('load', 'image')
+#
+## add path
+#octave.addpath('/home/btek/Dropbox/code/matlabcode/utility')
+#
+#
+## call octave rotation method
+#def generateRotatedSamples(img, numRotations):
+#    return octave.generateRotatedData2(img, numRotations)
+#
+#
+#def generateCroppedSamples(img, numCrops):
+#    return octave.generateCroppedData(img, numCrops)
+#
+#
+#def generateIntensitySamples(img, numInt):
+#    return octave.generateIntensityNoise
+#MEANS_ARR
 
 
 # normalize a matrix of rgb values to zero mean variance
@@ -63,8 +64,11 @@ def denormRGB(X, mx=1, mn=-1, doclip=True):
     return Y
 
 def plotTrainSetInSubPlots(setX, wy, wx, nchannels, fignum=332):
-    # find number of whole edges    
-    nedge = sqrt(len(setX))
+    # find number of whole edges  
+    mxplots = len(setX)
+    if (mxplots > MXSUBPLOTS):
+        mxplots = MXSUBPLOTS
+    nedge = sqrt(mxplots)
     nedge_ceil = int(ceil(nedge))
 
     fig = plt.figure(fignum, (8., 8.))
@@ -74,7 +78,7 @@ def plotTrainSetInSubPlots(setX, wy, wx, nchannels, fignum=332):
                 axes_pad=0.01 # pad between axes in inch.
                 )
 
-    for i in range(len(setX)):
+    for i in range(mxplots):
         grid[i].imshow(uint8(denormRGB(setX[i].reshape(wy, wx, nchannels)))) # The AxesGrid object work as a list of axes.
 
     plt.show()
@@ -160,7 +164,7 @@ def doColorMeanShift(img, randommix=True):
         br = 0.05 * (random.rand(1) - 0.5)
         bg = 0.05 * (random.rand(1) - 0.5)
         gr = 0.05 * (random.rand(1) - 0.5)
-        print '.05'
+#        print '.05'
     
     im_r2 = im_ra + im_ga * gr + im_ba * br
     im_g2 = im_ga + im_ra * gr + im_ba * bg

@@ -20,7 +20,8 @@ import sampleFactory
 ROOTFOLDER = '/home/btek/Dropbox/code/pythoncode/linuxsource/src/mitosisdetection/'
 IMGLIST = 'mitosisData/amida_train/listjpgs.txt'
 CSVLIST = 'mitosisData/amida_train/listcsvs.txt'
-CLASSIFIERFILE = 'random_forest_trained.pkl'
+CLASSIFIERFILE_INIT = 'random_forest_trained.pkl'
+CLASSIFIERFILE_CONT = 'random_forest_trained_e2.pkl'
 WORKMODE = 'TESTANDCOLLECTSAMPLES'
 WINDOWSIZE = 50
 # roughly 5mm for amida??, not sure about this.
@@ -28,6 +29,8 @@ DISTANCETHRESHOLD = 20
 DEBUGPLOT = False
 AUGMENTPOSITIVESAMPLES = True
 SAMPLE_MULTIPLIER = 20  # number of sample augmentation for each sample
+NSAMPLETRAININGINTERVAL = 10
+TRAININGMODE = 0 
 
 
 # load my classifier
@@ -39,10 +42,10 @@ def loadClassifier(filename):
 
 
 # train the classifier with new DAta. warm start, increase estimators by one.
-# this function actually adds one single tree to the forest.
-def trainIncrementally(classifier, X, y):
+# this function actually adds newEstimators trees to the forest.
+def trainIncrementally(classifier, X, y, newEstimators=1):
     classifier.set_params(warm_start=True,
-                          n_estimators=classifier.n_estimators+1, 
+                          n_estimators=classifier.n_estimators+newEstimators, 
                           oob_score=True)
     classifier.fit(X, y)
     # return the classifier itself and the oob error
@@ -223,14 +226,14 @@ def overlayandPlotEvalution(img, tp = [], hit = [], falsepos = [], missed = [], 
     nDrawFalse = 200
     if len(reduced_set)>nDrawFalse:
         reduced_set = reduced_set[0:nDrawFalse].squeeze().astype(int)
-    print reduced_set.shape
+    # print reduced_set.shape
     false_reduced = [falsepos[i] for i in reduced_set]
     for pt in false_reduced:
         minc = pt[1]-2
         minr = pt[0]-2
                 
-        rect = mpatches.Rectangle((minc, minr), 4, 4,
-                              fill=False, edgecolor='red', linewidth=1)
+        rect = mpatches.Rectangle((minc, minr), 8, 8,
+                              fill=False, edgecolor='cyan', linewidth=1)
         ax.add_patch(rect)
         
     for pt in missed:
@@ -242,33 +245,40 @@ def overlayandPlotEvalution(img, tp = [], hit = [], falsepos = [], missed = [], 
         ax.add_patch(rect)
     ax.annotate('TP', xy=(2000,50), color='green', weight='heavy', size='large' )
     ax.annotate('Hit', xy=(2000,150), color='blue', weight='heavy', size='large')
-    ax.annotate('False', xy=(2000,250), color='red', weight='heavy', size='large')
+    ax.annotate('False', xy=(2000,250), color='cyan', weight='heavy', size='large')
     ax.annotate('Missed', xy=(2000,350), color='yellow', weight='heavy', size='large')    
     plt.show()
 
 #############################################################################
-def collectSamples(img, posList = [], negList = [], rectW = WINDOWSIZE, rectH = WINDOWSIZE):
+def collectSamples(img, posList = [], negList = [], rectW = WINDOWSIZE, 
+                   rectH = WINDOWSIZE, multiScale=[1.0]):
 
     posWindows =[]
     negWindows=[]
-    hW = np.int(rectW/2)
-    hH = np.int(rectH/2)
     p = 0
-    for pt in posList:
-        print pt
-        minc = np.int(pt[1] - hH)
-        minr = np.int(pt[0] - hW)
-        wind = img[minr:minr+rectH, minc:minc+rectW, :]
-        # check if crop was full
-        if wind.shape != (rectH, rectW, 3):
-            print "Window resized", wind.shape
-            wind2 = imresize(wind, [rectH, rectW])
-            plt.imshow(wind2)
-            plt.show()
-            wind = wind2
+    for m in multiScale:
+        hW = np.int(rectW/2 * m)
+        hH = np.int(rectH/2 * m)
+    
+        for pt in posList:
+            # print pt
+            minc = np.int(pt[1] - hH)
+            minr = np.int(pt[0] - hW)
+            wind = img[minr:minr+2*hH, minc:minc+2*hW, :]
+            # check if crop was full
+            if wind.shape != (rectH, rectW, 3):
+                # print "Window resized", wind.shape
+                wind2 = imresize(wind, [rectH, rectW])
+#                plt.imshow(wind2)
+#                plt.show()
+                wind = wind2
+#            if m != 1.0:
+#                wind = imresize(wind, [rectH, rectW])
             
-        posWindows.append(wind)
-        p = p + 1
+            posWindows.append(wind)
+            p = p + 1
+        
+    
 
 #        if DEBUGPLOT:
 #
@@ -279,8 +289,10 @@ def collectSamples(img, posList = [], negList = [], rectW = WINDOWSIZE, rectH = 
             # print minr, minr+rectH
             # print minc, minc+rectW
 
-    print 'Collected', p, ' positive samples'
+    print 'Collected', p, ' positive samples', 'in ', len(multiScale), ' scales'
     for pt in negList:
+        hW = np.int(rectW/2)
+        hH = np.int(rectH/2)
         minc = pt[1] - hH
         minr = pt[0] - hW
         wind = img[minr:minr+rectW, minc:minc+rectH, :]
@@ -302,7 +314,7 @@ def createTrainSet(posWinds, negWinds, augmentpos=False):
     nneg = np.shape(negWinds)[0]
     wind = posWinds[0]
     windlen = np.shape(wind)[0] * np.shape(wind)[1] * np.shape(wind)[2]
-    # print len(posWinds)
+    #print len(posWinds)
     # print [npos, windlen]
     Xpos = np.zeros([npos, windlen])
     k = 0 
@@ -325,68 +337,126 @@ def createTrainSet(posWinds, negWinds, augmentpos=False):
     return X, y
 
 
-#############################################################################
+#############################################################
 def augmentSamples(sampleWindows):
     return sampleFactory.generateSamples(sampleWindows, SAMPLE_MULTIPLIER)
-#############################################################################
+#############################################################
 
-
-
-
-# main #############################################################################
-clf = loadClassifier(CLASSIFIERFILE)
+# main #####################################################
+clf = loadClassifier(CLASSIFIERFILE_INIT)
 
 # take the list of jpgs in the folder
 listjpg, rootjpg = loadFileList(IMGLIST)
 listcsv, rootcsv = loadFileList(CSVLIST)
 # print listjpg, listcsv
-k = 1
-for f, g in zip(listjpg, listcsv):
+
+# these lists accumulate samples collected from each image
+
+# this counts newly collected samples from the last training
+newSamples = 0
+sampleCollectStepSizeList = [100, 50, 25, 20, 10, 5]
+for stpSize in sampleCollectStepSizeList:
+    k = 1
+    allCollectedSampleSetX = []
+    allCollectedSampleLabels = []
+    listnTp = []
+    listnFp = []
+    listnGT = []
+    newSamples = 0
+
+
+    for f, g in zip(listjpg, listcsv):
+        # load the ground truth marks
+        gtforfile = loadCSV(rootcsv+g.rstrip('\n'))
+        gtforfile = list(gtforfile)
+        print f, g
+        print "Wındow step:", stpSize
+        imInput = loadImage(rootjpg + f.rstrip('\n'))
+        # normalize image to [0-1.0]
+        imInput = sampleFactory.normRGB(imInput)
     
-    gtforfile = loadCSV(rootcsv+g.rstrip('\n'))
-    gtforfile = list(gtforfile)
-    print f, g
-    imInput = loadImage(rootjpg + f.rstrip('\n'))
-    imInput = sampleFactory.normRGB(imInput)
-
-    # classify each window with stepSize
-    imBinary, imProb = slidingWindow(clf, imInput, WINDOWSIZE, stepSize=10)
-
-    # label detections as true false pos
-    hit, truepos, falsepos, falseneg = labelAndEvaluateOutput(imBinary, gtforfile)
-    print "tp {0}, fp {1}, fn {2}, gt {3}, hit-{4}".format(len(truepos), len(falsepos), len(falseneg), len(gtforfile), len(hit))
-#    if DEBUGPLOT:
-#        plt.figure(1)
-#        plt.gray()
-#        plt.imshow(imOutput)
-#        plt.show(block=True)
-#        input()
-
-    # plot truepos and some random falsepositives
-    overlayandPlotEvalution(imInput, truepos, hit, falsepos, falseneg)
+        # classify each window with stepSize
+        imBinary, imProb = slidingWindow(clf, imInput, WINDOWSIZE, stepSize=stpSize)
     
-    # merge detections with the gt
-    posList = gtforfile + truepos
-    newPos, newNeg = collectSamples(imInput, posList, falsepos)
-
-    trainsetx, trainsety = createTrainSet(newPos, newNeg, AUGMENTPOSITIVESAMPLES)
-
-    # now use new samples to train our classifier
-    clf, oob_error = trainIncrementally(clf, trainsetx, trainsety)
-    print "Training Error {0}".format(oob_error)
-    # newPos = augmentSamples(newPos)
-
-
-#    if k%2==0:
-#        s= raw_input('continue? y or n')
-#    else:
-#        s = ''
-#    if((s == 'n') | (s =='0')):
-#        break
-    #w =raw_input("PRESS ENTER TO CONTINUE.")
+        # label detections as true false pos
+        hit, truepos, falsepos, falseneg = labelAndEvaluateOutput(
+                                                                  imBinary,
+                                                                  gtforfile)
+        print "tp {0}, fp {1}, fn {2}, gt {3}, hit-{4}".format(len(truepos), len(falsepos), len(falseneg), len(gtforfile), len(hit))
+        listnTp.append(len(truepos))
+        listnFp.append(len(falsepos))
+        listnGT.append(len(gtforfile))
     
+        overlayandPlotEvalution(imInput, truepos, hit, falsepos, falseneg)
+    
+        # merge detections with the gt
+        posList = gtforfile + truepos
+        newPos, newNeg = collectSamples(imInput, posList, falsepos,
+                                        multiScale=[1.0, 1.1, 1.2])
+    
+        trainsetx, trainsety = createTrainSet(newPos, newNeg, AUGMENTPOSITIVESAMPLES)
+    
+    #   record new sample length
+        newSamples = newSamples + len(trainsety)
+    
+        if k == 1:
+            allCollectedSampleSetX = np.copy(trainsetx)
+            allCollectedSampleLabels = np.copy(trainsety)
+        else:
+            allCollectedSampleSetX = np.concatenate((allCollectedSampleSetX, trainsetx), axis=0)
+            allCollectedSampleLabels = np.concatenate((allCollectedSampleLabels, trainsety), axis=0)
+    
+    #   record new samples to the file
+        _ = joblib.dump(allCollectedSampleSetX,'bootstrap_collected_sampleX.pkl', compress=9)
+        _ = joblib.dump(allCollectedSampleLabels, 'bootstrap_collected_sampleY.pkl', compress=9)
+    
+        if TRAININGMODE == 0:
+            # we do not train
+            # training will be done after the loop
+            print "Samples are stored"
+    
+        elif TRAININGMODE == 1:
+            print "Training X: ", np.shape(trainsetx)
+            print "Training y: ", np.shape(trainsety)
+            clf, oob_error = trainIncrementally(clf, trainsetx, trainsety)
+    
+        elif TRAININGMODE == 2 and newSamples > NSAMPLETRAININGINTERVAL:
+    
+            print "Training X: ", np.shape(allCollectedSampleSetX)
+            print "Training y: ", np.shape(allCollectedSampleLabels)
+            clf, oob_error = trainIncrementally(clf,
+                                                allCollectedSampleSetX,
+                                                allCollectedSampleLabels)
+    
+    #       reset sample counter
+            newSamples = 0
+        # now use new samples to train our classifier
+    
+        # leave time to recognize keyboard interrupt
+        sleep(1)
+    
+        if k == 5:
+            # calculate the performance
+            TPrate = np.sum(np.array(listnTp)) / np.sum(np.array(listnGT))
+            FPpIMG = np.sum(np.array(listnFp)) / k
+            break
+        k = k+1
+
+
+    if TRAININGMODE == 0:
+        # training will be performed after loop ends
+        print "Training X: ", np.shape(allCollectedSampleSetX)
+        print "npos samples ", np.sum(allCollectedSampleLabels==1)
+        print "nneg samples ", np.sum(allCollectedSampleLabels==0)
+                                
+    
+        clf, oob_error = trainIncrementally(clf,
+                                            allCollectedSampleSetX,
+                                            allCollectedSampleLabels,
+                                            newEstimators=3)
+        print "Trained Error {0}".format(oob_error)
+    
+    # save the training
+    _ = joblib.dump(clf, CLASSIFIERFILE_CONT, compress=9)
+    print "trained", clf
     sleep(10)
-    k = k+1
-    if k == 3:
-       
-        break
