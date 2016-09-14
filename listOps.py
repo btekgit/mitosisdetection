@@ -6,5 +6,6 @@ Created on Wed Aug  3 20:52:12 2016
 """
 
 
-def listDiff(a, b):
-    return lambda la, lb: [x for x in la if x not in lb]
+def listDiff(la, lb):
+    d = list(x for x in la if x not in lb)
+    return d

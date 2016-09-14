@@ -95,7 +95,7 @@ def main():
     #clf_transformed = clf.apply(XXtrainIn)
     pred = clf.predict(XXtrainIn)
     #save the classifier
-    _ = joblib.dump(clf, 'random_forest_trained.pkl', compress =9)
+    #_ = joblib.dump(clf, 'random_forest_trained.pkl', compress =9)
     
     labels = ytrain.squeeze()
     ypred = pred#np.argmax(pred, axis = 1)

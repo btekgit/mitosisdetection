@@ -8,6 +8,7 @@ Created on Fri Jun 24 15:47:53 2016
 # from oct2py import octave
 from numpy import random, fliplr, flipud, rot90, shape, mean
 from numpy import clip, stack, float32, sqrt, zeros, arange, ceil, uint8
+import numpy as np
 from skimage.transform import resize
 import scipy.io as sio
 import matplotlib.pyplot as plt
@@ -71,7 +72,7 @@ def plotTrainSetInSubPlots(setX, wy, wx, nchannels, fignum=332):
     nedge = sqrt(mxplots)
     nedge_ceil = int(ceil(nedge))
 
-    fig = plt.figure(fignum, (8., 8.))
+    fig = plt.figure(fignum, (12., 12.))
     
     grid = ImageGrid(fig, 111, # similar to subplot(111)
                 nrows_ncols = (nedge_ceil, nedge_ceil), # creates nedge x nedge grid of axes
@@ -156,21 +157,23 @@ def doColorMeanShift(img, randommix=True):
     im_ra = im_r / mn_r * rc[0] 
     im_ga = im_g / mn_g * rc[1]
     im_ba = im_b / mn_b * rc[2]
-
+    # print "means:",mean(im_ra), mean(im_ga), mean(im_ba)
     br = 0.0
     bg = 0.0
     gr = 0.0
     if randommix:
-        br = 0.05 * (random.rand(1) - 0.5)
-        bg = 0.05 * (random.rand(1) - 0.5)
-        gr = 0.05 * (random.rand(1) - 0.5)
-#        print '.05'
-    
-    im_r2 = im_ra + im_ga * gr + im_ba * br
-    im_g2 = im_ga + im_ra * gr + im_ba * bg
-    im_b2 = im_ba + im_ra * br + im_ga * br
-    
-    out = stack((im_r2, im_g2, im_b2), axis=2)
+        br = 0.01 * (random.rand(1) - 0.5)
+        bg = 0.01 * (random.rand(1) - 0.5)
+        gr = 0.01 * (random.rand(1) - 0.5)
+        # print "color mix coeff",br,bg,gr
+        im_r2 = im_ra + im_ga * gr + im_ba * br
+        im_g2 = im_ga + im_ra * gr + im_ba * bg
+        im_b2 = im_ba + im_ra * br + im_ga * br
+        
+        # print "means:",mean(im_r2), mean(im_g2), mean(im_b2), np.max(im_ra), np.min(im_ra)
+        out = stack((im_r2, im_g2, im_b2), axis=2)
+    else:
+        out = stack((im_ra, im_ga, im_ba), axis=2)
     normRGB(out)
 
     return out
