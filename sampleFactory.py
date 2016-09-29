@@ -23,8 +23,9 @@ DEBUG_plot = True
 
 # load some pre recorded rgb values.
 # these are used to produce random meaningful color transformations
-MEANS_FILE = sio.loadmat('/home/btek/Dropbox/code/matlabcode/mitosis_code/amida_elm/amida_mitos_means_v2.mat')
-MEANS_ARR = MEANS_FILE['rgb_means']
+# NOT USING THIS BECAUSE IT CAUSES PROBLEMS, SATURATIONS
+#MEANS_ARR = np.load('mitosisData/mitosis_rgb_means.npy')
+
 
 ## load image processing package
 #octave.pkg('load', 'image')
@@ -48,13 +49,16 @@ MEANS_ARR = MEANS_FILE['rgb_means']
 
 
 # normalize a matrix of rgb values to zero mean variance
-def normRGB(X, mx=255.0, mn=0):
+def normRGB(X, mx=255.0, mn=0, doclip=True):
 
     c = float32(1/mx*2.0)
     # print c
-    X *= c
-    X -= 1.0
-    return X
+    Y = X*c
+    Y -= 1.0
+    if doclip:
+        Y = clip(Y, -1.0, 1.0)    
+    #print "normed data new max", np.max(X), " min:", np.min(X)
+    return Y
 
 
 def denormRGB(X, mx=1, mn=-1, doclip=True):
@@ -62,6 +66,7 @@ def denormRGB(X, mx=1, mn=-1, doclip=True):
     Y = Y * 127.5
     if doclip:
         Y = clip(Y, 0, 255)
+    #print "DENOrmed data new max", np.max(Y), " min:", np.min(Y)
     return Y
 
 def plotTrainSetInSubPlots(setX, wy, wx, nchannels, fignum=332):
@@ -78,10 +83,13 @@ def plotTrainSetInSubPlots(setX, wy, wx, nchannels, fignum=332):
                 nrows_ncols = (nedge_ceil, nedge_ceil), # creates nedge x nedge grid of axes
                 axes_pad=0.01 # pad between axes in inch.
                 )
-
     for i in range(mxplots):
-        grid[i].imshow(uint8(denormRGB(setX[i].reshape(wy, wx, nchannels)))) # The AxesGrid object work as a list of axes.
-
+        if isinstance (setX, list):    
+            grid[i].imshow(uint8(denormRGB(setX[i].reshape(wy, wx, nchannels)))) # The AxesGrid object work as a list of axes.
+        else:
+            #print i
+            grid[i].imshow(uint8(denormRGB(setX[i,:].reshape(wy, wx, nchannels)))) # The AxesGrid object work as a list of axes.
+        
     plt.show()
     
 
@@ -89,11 +97,15 @@ def plotTrainSetInSubPlots(setX, wy, wx, nchannels, fignum=332):
 def generateSamples(imgSet, multiplier):
     outSet = []
     k = 0
+    if not isinstance(imgSet,list):
+        print "generate samples expects a list of images"
     for img in imgSet:
         for m in range(0, multiplier):
+            #print "shape before", np.shape(img()
             cand = doRandomRotation(img)
             cand = doRandomCrop(cand)
             cand = doColorMeanShift(cand)
+     #       print " random and crop"
             if shape(cand) == shape(img):
                 outSet.append(cand)
             else:
@@ -105,8 +117,8 @@ def generateSamples(imgSet, multiplier):
 
 # produce a random rotation
 def doRandomRotation(img):
-    out = img
-    r = random.randint(4)
+    out = np.copy(img)
+    r = random.randint(5)
 
     if (r == 0):
         out = fliplr(img)
@@ -119,17 +131,20 @@ def doRandomRotation(img):
     
     if shape(out) != shape(img):
         print "rotate changes size in", out.shape, img.shape
-    
+    #print "shape before", shape(img), "shape after rot", shape(out)
     return out
 
 
 # produce a random margin, resize image back to oriMEANS_ARRginal
 def doRandomCrop(img):
-    out = img
+    out = np.copy(img)
     originalSize = shape(out)
+    
     x = random.randint(CROP_WIDTH_MAX)
+    
     y = random.randint(CROP_HEIGHT_MAX)
     out = img[y:-CROP_HEIGHT_MAX, x:-CROP_WIDTH_MAX]
+    #print "size:", originalSize, " x,y: ",x,y
     #print "cropped shape:", out.shape
     out = resize(out, originalSize)
     if shape(out) != shape(img):
@@ -139,11 +154,12 @@ def doRandomCrop(img):
 
 
 # change the mean with a random mitosis mean
-def doColorMeanShift(img, randommix=True):
+def doColorMeanShift(img):
     # choose a random RGB Mean
-    # out = np.zeros(np.shape(img))
-    nmeans = MEANS_ARR.shape[0]
+    out = np.copy(img)
+    #nmeans = MEANS_ARR.shape[0]
     img_RGB = denormRGB(img)
+    
     im_r = img_RGB[:, :, 0]
     im_g = img_RGB[:, :, 1]
     im_b = img_RGB[:, :, 2]
@@ -151,29 +167,82 @@ def doColorMeanShift(img, randommix=True):
     mn_g = mean(im_g)
     mn_b = mean(im_b)
 
-    rc = MEANS_ARR[random.randint(nmeans), :]
-    # print rc
-        
-    im_ra = im_r / mn_r * rc[0] 
-    im_ga = im_g / mn_g * rc[1]
-    im_ba = im_b / mn_b * rc[2]
-    # print "means:",mean(im_ra), mean(im_ga), mean(im_ba)
+    #print "means:",mean(im_r), mean(im_g), mean(im_b)
     br = 0.0
     bg = 0.0
     gr = 0.0
-    if randommix:
-        br = 0.01 * (random.rand(1) - 0.5)
-        bg = 0.01 * (random.rand(1) - 0.5)
-        gr = 0.01 * (random.rand(1) - 0.5)
-        # print "color mix coeff",br,bg,gr
-        im_r2 = im_ra + im_ga * gr + im_ba * br
-        im_g2 = im_ga + im_ra * gr + im_ba * bg
-        im_b2 = im_ba + im_ra * br + im_ga * br
-        
-        # print "means:",mean(im_r2), mean(im_g2), mean(im_b2), np.max(im_ra), np.min(im_ra)
-        out = stack((im_r2, im_g2, im_b2), axis=2)
-    else:
-        out = stack((im_ra, im_ga, im_ba), axis=2)
-    normRGB(out)
+    
+    br = 0.1 * (random.rand(1) - 0.5)
+    bg = 0.1 * (random.rand(1) - 0.5)
+    gr = 0.1 * (random.rand(1) - 0.5)
+    # print "color mix coeff",br,bg,gr
+    im_r2 = im_r + im_g * gr + im_b * br
+    im_g2 = im_g + im_r * gr + im_b * bg
+    im_b2 = im_b + im_r * br + im_g * bg
+    
+    mx_r = np.max(im_r2)
+    mx_g = np.max(im_g2)
+    mx_b = np.max(im_b2)
+
+    mn_r = np.min(im_r2)
+    mn_g = np.min(im_g2)
+    mn_b = np.min(im_b2)
+    
+    #print "means:",mx_r,mx_g,mx_b,mn_r,mn_g,mn_b
+    
+    im_r2 = (im_r2-mn_r)/(mx_r-mn_r)*255.0
+    im_g2 = (im_g2-mn_g)/(mx_g-mn_g)*255.0
+    im_b2 = (im_b2-mn_b)/(mx_b-mn_b)*255.0
+
+    
+    #print "means:",mean(im_r2), mean(im_g2), mean(im_b2), np.max(im_r2), np.min(im_r2)
+    out[:,:,0] = im_r2
+    out[:,:,1] = im_g2
+    out[:,:,2] = im_b2
+    
+    #print "max:", np.max(out), "mean:", np.mean(out), "min:", np.min(out)
+    checkmean = np.mean(out)
+    if(checkmean>200):
+        print "max:", np.max(out), "mean:", np.mean(out), "min:", np.min(out)
+        print("check here mean is high")
+    
+    out = normRGB(out, doclip=True)
+    
 
     return out
+
+
+def doMinMaxNorm(img):
+    
+    out = np.copy(img)
+    #nmeans = MEANS_ARR.shape[0]
+    #img_RGB = denormRGB(img)
+    
+    im_r = img[:, :, 0]
+    im_g = img[:, :, 1]
+    im_b = img[:, :, 2]
+    
+    mx_r = np.max(im_r)
+    mx_g = np.max(im_g)
+    mx_b = np.max(im_b)
+
+    mn_r = np.min(im_r)
+    mn_g = np.min(im_g)
+    mn_b = np.min(im_b)
+    
+    im_r2 = (im_r-mn_r)/(mx_r-mn_r)*2.
+    im_g2 = (im_g-mn_g)/(mx_g-mn_g)*2.
+    im_b2 = (im_b-mn_b)/(mx_b-mn_b)*2.
+    
+    out[:,:,0] = im_r2-1.
+    out[:,:,1] = im_g2-1.
+    out[:,:,2] = im_b2-1.
+    
+    return out
+    
+def testNormDenorm():
+    import scipy
+    img = scipy.misc. imread('/home/btek/Dropbox/code/pythoncode/linuxsource/src/mitosisdetection/mitosisData/amida_train/01/09.jpg')
+    img = np.float32(img)
+    out = doColorMeanShift(normRGB(img))
+    plt.imshow(np.uint8(denormRGB(out)))
