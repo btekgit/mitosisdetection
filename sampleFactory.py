@@ -94,25 +94,43 @@ def plotTrainSetInSubPlots(setX, wy, wx, nchannels, fignum=332):
     
 
 # generate new Samples with random transformations, multiplier times the orig
-def generateSamples(imgSet, multiplier):
-    outSet = []
+def generateSamples(inSet, multiplier):
+    
     k = 0
-    if not isinstance(imgSet,list):
-        print "generate samples expects a list of images"
-    for img in imgSet:
+    outSet = []
+    indexSet = []
+    
+    if isinstance(inSet,list):
+        print "generate samples convertin imgSet into a list of RGB imgs"
+        n_img = len(inSet)
+        listSet = inSet
+    elif isinstance(inSet,np.ndarray):
+        n_img = inSet.shape[0]
+        listSet = [inSet[i,:,:,:] for i in range(0,n_img)]
+        
+    for i in range(0, n_img):
+        img = listSet[i]
         for m in range(0, multiplier):
             #print "shape before", np.shape(img()
-            cand = doRandomRotation(img)
-            cand = doRandomCrop(cand)
-            cand = doColorMeanShift(cand)
-     #       print " random and crop"
+            cand = np.copy(img)
+            cand = doRandomRotation(cand)
+            #cand = doRandomCrop(cand)
+            cand = doRandomColorShift(cand)
+            #print " random and crop"
             if shape(cand) == shape(img):
                 outSet.append(cand)
             else:
                 print "sample shape changes: {0}".format(shape(cand))
-                k = k+1
+            k = k+1
+
+            indexSet.append(i)
+    #return also indexes to be used for label matching. do 
+    #   ynew = y(indexSet)
+    if isinstance(inSet,np.ndarray):
+        return np.asarray(outSet,dtype='float32'), np.asarray(indexSet,dtype='int32')
+    else:
+        return outSet, indexSet
             
-    return outSet
 
 
 # produce a random rotation
@@ -172,10 +190,10 @@ def doColorMeanShift(img):
     bg = 0.0
     gr = 0.0
     
-    br = 0.1 * (random.rand(1) - 0.5)
-    bg = 0.1 * (random.rand(1) - 0.5)
-    gr = 0.1 * (random.rand(1) - 0.5)
-    # print "color mix coeff",br,bg,gr
+    br = 0.05 * (random.rand(1) - 0.5)
+    bg = 0.05 * (random.rand(1) - 0.5)
+    gr = 0.05 * (random.rand(1) - 0.5)
+    #print "color mix coeff",br, bg, gr
     im_r2 = im_r + im_g * gr + im_b * br
     im_g2 = im_g + im_r * gr + im_b * bg
     im_b2 = im_b + im_r * br + im_g * bg
@@ -189,10 +207,15 @@ def doColorMeanShift(img):
     mn_b = np.min(im_b2)
     
     #print "means:",mx_r,mx_g,mx_b,mn_r,mn_g,mn_b
+
+    im_r2 = np.clip(im_r2, 0, 255)
+    im_g2 = np.clip(im_g2, 0, 255)
+    im_b2 = np.clip(im_b2, 0, 255)
     
-    im_r2 = (im_r2-mn_r)/(mx_r-mn_r)*255.0
-    im_g2 = (im_g2-mn_g)/(mx_g-mn_g)*255.0
-    im_b2 = (im_b2-mn_b)/(mx_b-mn_b)*255.0
+    # stretch may not be working very good
+    #im_r2 = (im_r2-mn_r)/(mx_r-mn_r)*255.0
+    #im_g2 = (im_g2-mn_g)/(mx_g-mn_g)*255.0
+    #im_b2 = (im_b2-mn_b)/(mx_b-mn_b)*255.0
 
     
     #print "means:",mean(im_r2), mean(im_g2), mean(im_b2), np.max(im_r2), np.min(im_r2)
@@ -202,13 +225,34 @@ def doColorMeanShift(img):
     
     #print "max:", np.max(out), "mean:", np.mean(out), "min:", np.min(out)
     checkmean = np.mean(out)
-    if(checkmean>200):
-        print "max:", np.max(out), "mean:", np.mean(out), "min:", np.min(out)
-        print("check here mean is high")
+    if(checkmean>250):
+        print "Hig mean max:", np.max(out), "mean:", np.mean(out), "min:", np.min(out)
+        #print("check here mean is high")
     
     out = normRGB(out, doclip=True)
     
 
+    return out
+
+def doRandomColorShift(img):
+    
+    out = np.copy(img)
+    out = denormRGB(out)
+    
+    # value between 5...-4
+    a = random.randint(10)-4
+    
+    # choose a random channel
+    c = random.randint(3)
+    
+    # change that channel value
+    out[:, :, c] = out[:, :, c] + a
+    
+    #print "means:", np.mean(out), np.max(out), np.min(out)
+    out = np.clip(out, 0, 255)
+    out = normRGB(out, doclip=True)
+
+    
     return out
 
 

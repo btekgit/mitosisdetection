@@ -102,7 +102,9 @@ def balanceLabels(X, Y, balanceOnLabel=None,
     numAll = len(Y)
     
     indices = np.array(range(numAll))
-    
+    # take the first label
+    if balanceOnLabel is None:
+        balanceOnLabel = Y[0]
     
     indiceSet1 = indices[Y == balanceOnLabel]
     indiceSet2 = indices[Y != balanceOnLabel]

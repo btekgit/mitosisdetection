@@ -11,14 +11,12 @@ import scipy.io as sio
 import sys
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
-from sampleFactory import normRGB, denormRGB, plotTrainSetInSubPlots
+from sampleFactory import normRGB, denormRGB
 
-
-ROOTFOLDER = u'/home/btek/data/mitosisData/'
-#INPUTFILE = ROOTFOLDER+'AugmentedSampleAll_v3_X.npy'
-INPUTFILE = ROOTFOLDER+'OriginalSampleX.npy'
-#TARGETCLASSFILE = ROOTFOLDER+'AugmentedSampleAll_v3_Y.npy'
-TARGETCLASSFILE = ROOTFOLDER+'OriginalSampleY.npy'
+INPUTFILE = u'/home/btek/Dropbox/code/pythoncode/linuxsource/src/mitosisdetection/mitosisData/AugmentedSampleAll_v3_X_wb.npy'
+#INPUTTARGETFILE = u'/home/btek/Dropbox/code/matlabcode/mitosis_code/amida_elm/AugmentedSampleAll_v2_orig_X.pkl'
+TARGETCLASSFILE = u'/home/btek/Dropbox/code/pythoncode/linuxsource/src/mitosisdetection/mitosisData/AugmentedSampleAll_v3_Y_wb.npy'
+MODELFILE = u'elm_model_all'
 WIDTH = 50
 HEIGHT = 50
 debug = False
@@ -55,27 +53,35 @@ input_shape = WIDTH*HEIGHT*3
 gfilter = makeGaussian(50,)
 #read the input file,,,
 XXin = (np.load(INPUTFILE)).astype('float32')
-
-
-#plotTrainSetInSubPlots(XXin[-40:,:],50,50,3,101)
+#XXout = (np.load(INPUTTARGETFILE)).astype('float32')
+##c = np.float32(1/255.0*2.0)
+#XXin *=c 
+#XXout*=c 
+#XXin  -=1.0 
+#XXin = normRGB(XXin) 
+import sampleFactory
+sampleFactory.plotTrainSetInSubPlots(XXin[-40:,:],50,50,3,101)
+#input("here")
+#XXout = normRGB(XXout) 
+#XXin = (XXin/255.0)*2.0 - 1.0
+#XXout = (XXout/255.0)*2.0 - 1.0
 print XXin.shape, "max: ", np.max(XXin), "min: ", np.min(XXin)
 
 y= (np.load(TARGETCLASSFILE)).astype('int32')
 print y
-YY = np.zeros([y.shape[0],2])    
+#YY = np.zeros([y.shape[0],2])    
 # dont know how to do this in python
-for ix in range(0, y.shape[0]):
-    YY[ix,y[ix]]= 1
+#for ix in range(0, y.shape[0]):
+#    YY[ix,y[ix]]= 1
 #XX = np.load(inputfile)
 
-trainix = range(0, XXin.shape[0]/2, 1)
-testix = range(XXin.shape[0]/2, XXin.shape[0], 1)
+trainix = range(XXin.shape[0]/3, XXin.shape[0], 1)
+testix = range(0, XXin.shape[0]/3, 1)
+
 XXtrainIn = XXin[trainix,]
-#XXtrainOut = XXout[trainix,]
-YYtrain = YY[trainix,]
-ytrain = np.ravel(y[trainix])
 XXtest = XXin[testix,]
-YYtest = YY[testix,]
+
+ytrain = np.ravel(y[trainix])    
 ytest = y[testix]
 
 # create weight to create a bias    
@@ -86,12 +92,12 @@ wtrain = dict({0:1.0-WEIGHTBALANCE, 1:WEIGHTBALANCE})
 #wtrain[ytrain==1] = wtrain[ytrain==1]*WEIGHTBALANCE
 #wtrain =  wtrain / sum(wtrain)
 
-clf = RandomForestClassifier(n_estimators=5, class_weight=wtrain,max_depth=10)
+clf = RandomForestClassifier(n_estimators=10, class_weight = wtrain)
 clf = clf.fit(XXtrainIn, ytrain)
 #clf_transformed = clf.apply(XXtrainIn)
 pred = clf.predict(XXtrainIn)
 #save the classifier
-_ = joblib.dump(clf, 'random_forest_trained.pkl', compress =9)
+_ = joblib.dump(clf, 'random_forest_trained_wb.pkl', compress =9)
 
 labels = ytrain.squeeze()
 ypred = pred#np.argmax(pred, axis = 1)
@@ -120,9 +126,11 @@ print "Tneg:",ntneg," / ", nneg, "TN:", ntneg/float(nneg)
 print "Acc: ", nhit/(float)(len(ypred)), "total", len(ypred)
 
 
-#if __name__ == "__main__":
-    #main()
-
+nn = 70000
+kk = 10000
+for k in range(nn, nn+kk, 100):
+    sampleFactory.plotTrainSetInSubPlots(XXin[k:k+20,:],50,50,3,101)
+    print y[k:k+20]
 
 
 #from sklearn.ensemble import RandomTreesEmbedding
