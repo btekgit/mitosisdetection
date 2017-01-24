@@ -31,11 +31,9 @@ def divideSetsRandomByRatio(X, Y, ratio, balanceOnLabel=None,
         randomixze: set True for random picking of samples.
     """
 
-    if  not balanceOnLabel:
+    if  randomize and not balanceOnLabel:
         # print X.shape[0], Y.shape[0]
         # trnX, trnY = X.copy(), Y.copy()
-
-
         trnX, tstX, trnY, tstY = train_test_split(X, Y, test_size=ratio,
                                                   random_state=randState)
     else:
@@ -74,6 +72,7 @@ def divideSetsRandomByRatio(X, Y, ratio, balanceOnLabel=None,
         tstX = X[indicesTst,:]
         trnY = Y[indicesTrn]
         tstY = Y[indicesTst]
+    
     return trnX, tstX, trnY, tstY
 
 def balanceLabels(X, Y, balanceOnLabel=None,
