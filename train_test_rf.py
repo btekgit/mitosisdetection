@@ -11,82 +11,50 @@ import scipy.io as sio
 import sys
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
-from sampleFactory import normRGB, denormRGB, plotTrainSetInSubPlots
+from sklearn.metrics import precision_recall_fscore_support
+from sampleFactory import normRGB, denormRGB, plotTrainSetInSubPlots, reshapeData
 
 
 ROOTFOLDER = u'/home/btek/data/mitosisData/'
-#INPUTFILE = ROOTFOLDER+'AugmentedSampleAll_v3_X.npy'
-INPUTFILE = ROOTFOLDER+'OriginalSampleX.npy'
+INPUTFILE = ROOTFOLDER+'AugmentedSample_v1_X.npy'
+#INPUTFILE = ROOTFOLDER+'OriginalSampleX.npy'
 #TARGETCLASSFILE = ROOTFOLDER+'AugmentedSampleAll_v3_Y.npy'
-TARGETCLASSFILE = ROOTFOLDER+'OriginalSampleY.npy'
+TARGETCLASSFILE = ROOTFOLDER+'AugmentedSample_v1_Y.npy'
 WIDTH = 50
 HEIGHT = 50
-debug = False
-
-def makeGaussian(size, fwhm=3, center=None):
-    """ Make a square gaussian kernel.
-
-    size is the length of a side of the square
-    fwhm is full-width-half-maximum, which
-    can be thought of as an effective radius.
-    """
-
-    x = np.arange(0, size, 1, float)
-    y = x[:, np.newaxis]
-
-    if center is None:
-        x0 = y0 = size // 2
-    else:
-        x0 = center[0]
-        y0 = center[1]
-
-    return np.exp(-4 * np.log(2) * ((x - x0) ** 2 + (y - y0) ** 2) / fwhm ** 2)
-
-
-
   
-
-narg = len(sys.argv)
-
-    
 input_shape = WIDTH*HEIGHT*3
-
-
-gfilter = makeGaussian(50,)
+np.random.seed(999)
 #read the input file,,,
 XXin = (np.load(INPUTFILE)).astype('float32')
 
+plotTrainSetInSubPlots(XXin[-40:, :], WIDTH, HEIGHT, 3, 101)
+XXin = reshapeData(XXin, (WIDTH, HEIGHT, 3), (12, 12, 3))
+plotTrainSetInSubPlots(XXin[-40:, :], 12, 12, 3, 101)
 
-#plotTrainSetInSubPlots(XXin[-40:,:],50,50,3,101)
 print XXin.shape, "max: ", np.max(XXin), "min: ", np.min(XXin)
 
 y= (np.load(TARGETCLASSFILE)).astype('int32')
-print y
-YY = np.zeros([y.shape[0],2])    
-# dont know how to do this in python
-for ix in range(0, y.shape[0]):
-    YY[ix,y[ix]]= 1
-#XX = np.load(inputfile)
 
-trainix = range(0, XXin.shape[0]/2, 1)
-testix = range(XXin.shape[0]/2, XXin.shape[0], 1)
+train_lim = XXin.shape[0]/2
+
+trainix = range(0, train_lim, 1)
+testix = range(train_lim, XXin.shape[0], 1)
+
 XXtrainIn = XXin[trainix,]
-#XXtrainOut = XXout[trainix,]
-YYtrain = YY[trainix,]
-ytrain = np.ravel(y[trainix])
 XXtest = XXin[testix,]
-YYtest = YY[testix,]
-ytest = y[testix]
+ytrain = np.ravel(y[trainix])
+ytest = np.ravel(y[testix])
+
+del XXin
 
 # create weight to create a bias    
 WEIGHTBALANCE = 0.5
 wtrain = dict({0:1.0-WEIGHTBALANCE, 1:WEIGHTBALANCE})
 #wtrain = dict({0:1.0,1:1.0})
-#wtrain = np.ones(ytrain.shape)
-#wtrain[ytrain==1] = wtrain[ytrain==1]*WEIGHTBALANCE
-#wtrain =  wtrain / sum(wtrain)
 
-clf = RandomForestClassifier(n_estimators=5, class_weight=wtrain,max_depth=10)
+
+clf = RandomForestClassifier(n_estimators=105, class_weight=wtrain, max_depth=5)
 clf = clf.fit(XXtrainIn, ytrain)
 #clf_transformed = clf.apply(XXtrainIn)
 pred = clf.predict(XXtrainIn)
@@ -102,9 +70,10 @@ npos = sum((labels==1))
 nneg = sum((labels==0))
 
 print "\n Random Forest train results"
-print "Tpos:",ntpos," / ", npos, "TD:", ntpos/float(npos)
-print "Tneg:",ntneg," / ", nneg, "TD:", ntneg/float(nneg)
+print "Tpos:", ntpos," / ", npos, "TD:", ntpos/float(npos)
+print "Tneg:", ntneg," / ", nneg, "TD:", ntneg/float(nneg)
 print "Acc: ", nhit/(float)(len(ypred)), "total", len(ypred)
+print "Score prec,rec,f-score,supprt:", precision_recall_fscore_support(labels, ypred) 
 
 pred = clf.predict(XXtest)
 labels = ytest.squeeze()
@@ -115,9 +84,13 @@ ntneg = sum((ypred==0) & (labels==0))
 npos = sum((labels==1))
 nneg =sum((labels==0))
 print "\n Random Forest Testing results"
-print "Tpos:",ntpos," / ", npos, "TD:", ntpos/float(npos)
-print "Tneg:",ntneg," / ", nneg, "TN:", ntneg/float(nneg)
+print "Tpos:", ntpos," / ", npos, "TD:", ntpos/float(npos)
+print "Tneg:", ntneg," / ", nneg, "TN:", ntneg/float(nneg)
 print "Acc: ", nhit/(float)(len(ypred)), "total", len(ypred)
+print "prec,rec,f-score,supprt:", precision_recall_fscore_support(labels, ypred)[0]
+print "rec,f-score,supprt:", precision_recall_fscore_support(labels, ypred)[1]
+print "f-score,supprt:", precision_recall_fscore_support(labels, ypred)[2]
+
 
 
 #if __name__ == "__main__":
