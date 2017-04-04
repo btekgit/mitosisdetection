@@ -13,6 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 from sklearn.metrics import precision_recall_fscore_support
 from sampleFactory import normRGB, denormRGB, plotTrainSetInSubPlots, reshapeData
+
 from sparse_filtering import SparseFiltering
 
 def report_accuracy(pred, labels, name=None):
@@ -33,8 +34,6 @@ def report_accuracy(pred, labels, name=None):
 
 ROOTFOLDER = u'/home/btek/data/mitosisData/'
 INPUTFILE = ROOTFOLDER+'AugmentedSample_v1_X.npy'
-#INPUTFILE = ROOTFOLDER+'OriginalSampleX.npy'
-#TARGETCLASSFILE = ROOTFOLDER+'AugmentedSampleAll_v3_Y.npy'
 TARGETCLASSFILE = ROOTFOLDER+'AugmentedSample_v1_Y.npy'
 WIDTH = 50
 HEIGHT = 50
@@ -43,6 +42,7 @@ input_shape = WIDTH*HEIGHT*3
 np.random.seed(999)
 #read the input file,,,
 XXin = (np.load(INPUTFILE)).astype('float32')
+
 
 #plotTrainSetInSubPlots(XXin[-40:, :], WIDTH, HEIGHT, 3, 101)
 XXin = reshapeData(XXin, (WIDTH, HEIGHT, 3), (12, 12, 3))
@@ -65,12 +65,16 @@ ytest = np.ravel(y[testix])
 del XXin
 
 # create weight to create a bias    
+
 WEIGHTBALANCE = 0.8
 wtrain = dict({0:1.0-WEIGHTBALANCE, 1:WEIGHTBALANCE})
 #wtrain = dict({0:1.0,1:1.0})
 
 
-clf = RandomForestClassifier(n_estimators=51, class_weight=wtrain, max_depth=15)
+
+clf = RandomForestClassifier(n_estimators=51, class_weight=wtrain, max_depth=10)
+
+
 clf = clf.fit(XXtrainIn, ytrain)
 #clf_transformed = clf.apply(XXtrainIn)
 pred = clf.predict(XXtrainIn)
@@ -78,8 +82,8 @@ pred = clf.predict(XXtrainIn)
 _ = joblib.dump(clf, 'random_forest_trained.pkl', compress =9)
 
 labels = ytrain.squeeze()
-report_accuracy(pred,labels, ' RF Raw Train')
 
+report_accuracy(pred,labels, ' RF Raw Train')
 pred = clf.predict(XXtest)
 labels = ytest.squeeze()
 report_accuracy(pred,labels, ' RF Raw Test')

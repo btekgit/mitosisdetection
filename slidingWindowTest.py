@@ -584,8 +584,8 @@ def createTrainingSetFromScratch(clf=None, sampleFileX=TRAININGFILEX,
 ##############################################################################
 
 # main #####################################################
-createTrainingSetFromScratch()
-input("Done")
+#createTrainingSetFromScratch()
+#input("Done")
 clf = loadClassifier(CLASSIFIERFILE_INIT)
 
 #createTrainingSetFromScratch(clf,BOOTSTRAPFILE_1_X,BOOTSTRAPFILE_1_Y)
