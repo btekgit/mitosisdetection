@@ -13,7 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 from sklearn.metrics import precision_recall_fscore_support
 from sampleFactory import normRGB, denormRGB, plotTrainSetInSubPlots, reshapeData
-
+sys.path.append('../sparse_filtering/')
 from sparse_filtering import SparseFiltering
 
 def report_accuracy(pred, labels, name=None):
