@@ -17,8 +17,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.base import clone
 from dataSetOperations import divideSetsRandomByRatio
-ADAPTIVENESTIMATORS = True
-MIN_SAMPLES = 20
+MIN_SAMPLES = 50
 
 
 def _recall_bias(df, frac):
@@ -160,7 +159,9 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
     def __init__(self, targetTP=0.99, targetFP=1e-3,
                  max_layers=1, verbose=1,
                  base_clf=None, weak_learner_params=None,
-                 priors=[0.5,0.5]):
+                 priors=[0.5,0.5], n_estimators=1, warm_start=False, 
+                 nAdaptiveNumberEstimators=False, 
+                 class_weight=[0.5, 0.5]):
         """ A cascaded boosting classifier
         Based on the Viola and Jones (2001) Cascade
         A cascaded classifier aggregates multiple classifiers in
@@ -193,6 +194,8 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
         self.targetFP = targetFP
 
         self.max_layers = max_layers
+        self.n_estimators = n_estimators
+        
 
         self.converged = False
 
@@ -200,8 +203,9 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
         self.estimators_ = []
         self.bias_ = []
         self.priors = priors
-        self.warm_start = False # used for incremental learning
-
+        self.class_weight = class_weight # warning not used
+        self.warm_start = warm_start # used for incremental learning
+        self.nAdaptiveNumberEstimators = nAdaptiveNumberEstimators
 
         # these are to hold each layer validated rates
         self.layerValidatedTP = []
@@ -212,6 +216,7 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
         self.cascadeTP = []
         self.cascadeFP = []
         self.featureLength = -1
+        
 
 
 
@@ -297,11 +302,12 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
 #                j = j + 1
             
             stage = stage + 1
-            # print prob
+        
         # normalizing so positive prob is in 0.5-1.0
+        #print "result:", result
         prob[:,1] = result * 0.5 + 0.5
         prob[:,0] = 1 - prob[:,1]
-        return result, prob
+        return  prob
 
     @needs_fit
     def re_calculate_stage_prediction_values(self, P1, P2):
@@ -377,10 +383,13 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
 
             F.append(F[-1])
             clf = clone(self.base_clf)
-            if ADAPTIVENESTIMATORS:
-                nest = np.int(np.log(nPos+nNeg))
+            if self.nAdaptiveNumberEstimators:
+                hm = np.sqrt(nPos*nNeg)
+                nest = np.int(np.log(hm))
                 print "Training n ", nest, " estimators "
                 clf.set_params(n_estimators=nest)
+            else:
+                clf.set_params(n_estimators=self.n_estimators)
 
             clf.fit(trnX, trnY)
 
@@ -406,7 +415,7 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
             P2 = self.priors[1]
             ep = 1e-10
             self.stage_pos_pred.append(P1*rc / (rc * P1 + pr * P2 + ep))
-            self.stage_neg_pred.append(P2*(1-pr) / ((1-rc) * P1 + (1-pr) * P2)+ep)
+            self.stage_neg_pred.append(P2*(1-pr) / ((1-rc) * P1 + (1-pr) * P2+ ep))
             # test whole levels
             Yp = self.predict(poolX)
             F[-1] = 1.0 * ((poolY == 0) & Yp).sum() / (nNeg + nValNeg)
@@ -459,20 +468,32 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
         
         print "Validation set: +", nValPos, " -",nValNeg       
         clf = clone(self.base_clf)
-        if ADAPTIVENESTIMATORS:
-            nest = np.int(np.log(nPos+nNeg))
+        if self.nAdaptiveNumberEstimators:
+            hm = np.sqrt((nPos*nNeg))
+            nest = np.int(np.log(hm)/2.0)
             print "Training n ", nest, " estimators "
             clf.set_params(n_estimators=nest)
+        else:
+            clf.set_params(n_estimators=self.n_estimators)
         
         clf.fit(trnX, trnY)
 
         bias = _set_bias(clf, valX, valY, self.targetTP,
                              self.targetFP, nTotNeg)
         print bias
-        self.estimators_.append(clf)
-        self.bias_.append(bias)
+        success = 0
+        if bias <= 0.0:
+            print "resetting goals"
+            bias = _set_bias(clf, valX, valY, self.targetTP*0.8,
+                             self.targetFP*1.2, nTotNeg)
+        if bias >= 0.0:
+                success=1
+                self.estimators_.append(clf)
+                self.bias_.append(bias)
+        else:
+            print "can not find a bias, cancelling new layer"
+    
         print self
-
         
         
     def add_cascade_layer(self, X, Y, valX=None, valY=None, val_ratio=0.2, fitParam=None):
@@ -512,23 +533,34 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
 
         clf = clone(self.base_clf)
 
-        if ADAPTIVENESTIMATORS:
-            nest = np.int(np.ceil((np.log(nPos+nNeg)/2)))
+        if self.nAdaptiveNumberEstimators:
+            hm = np.sqrt(nPos*nNeg)
+            nest = np.int(np.log(hm)/2.0)
             if nest<1: 
                 nest = 0
                 print "Number of examples too low, training cancelled"
                 return
             print "Training n ", nest, " estimators "
             clf.set_params(n_estimators=nest)
+        else:
+            clf.set_params(n_estimators=self.n_estimators)
         
         clf.fit(trnX, trnY)
         bias = _set_bias(clf, valX, valY, self.targetTP,
                              self.targetFP, nValNeg)
-        print "Decision th: ", bias
-
-        self.estimators_.append(clf)
-        self.bias_.append(bias)
-        print self
+        print "decision th",bias
+        success = 0
+        if bias <= 0.0:
+            print "resetting goals",self.targetTP*0.8, self.targetFP*1.2
+            bias = _set_bias(clf, valX, valY, self.targetTP*0.8,
+                             self.targetFP*1.2, nValNeg)
+        if bias > 0.0 and bias < 1.0:
+                success=1
+                self.estimators_.append(clf)
+                self.bias_.append(bias)
+        else:
+            print "can not find a bias, cancelling the new layer"
+            return self
 
         Yp = get_clf_binary_decision_func(clf, valX, 1) >= bias
         pr = 1.0 * ((valY == 0) & Yp).sum() / nValNeg
@@ -544,7 +576,7 @@ class CascadedBooster(BaseEstimator, ClassifierMixin):
         P2 = self.priors[1]
         ep = 1e-10
         self.stage_pos_pred.append(P1* rc / (rc * P1 + pr * P2 + ep))
-        self.stage_neg_pred.append(P2* (1-pr) / ((1-rc) * P1 + (1-pr) * P2)+ep)
+        self.stage_neg_pred.append(P2* (1-pr) / ((1-rc) * P1 + (1-pr) * P2+ep))
 
         return self
 

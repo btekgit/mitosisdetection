@@ -42,8 +42,8 @@ WINDOWSIZE = 50
 # roughly 5mm for amida??, not sure about this.
 DISTANCETHRESHOLD = 20
 DEBUGPLOT = False
-AUGMENTPOSITIVESAMPLES = True
-AUGMENTNEGATIVESAMPLES = True
+AUGMENTPOSITIVESAMPLES = False
+AUGMENTNEGATIVESAMPLES = False
 SAMPLE_MULTIPLIER = 10  # number of sample augmentation for each sample
 NSAMPLETRAININGINTERVAL = 10
 TRAININGMODE = 0
@@ -76,19 +76,19 @@ def loadClassifier(filename):
 False
 # train the classifier with new DAta. warm start, increase estimators by one.
 # this function actually adds newEstimators trees to the forest.
-def trainIncrementally(classifier, X, y, newEstimators=0, class_weights={0:0.5,1:0.5}):
-    if newEstimators<=0:
+def trainIncrementally(classifier, X, y, newEstimators=0, class_weights={0:0.5, 1:0.5}):
+    if newEstimators <= 0:
         nest = np.int(np.log(len(y))/2)
         newEstimators = max(nest, 1)
         print "Training n ", nest, " estimators "
         #clf.set_params(n_estimators=nest)
-    
-    if not CASCADE: 
+
+    if not CASCADE:
         classifier.set_params(warm_start=True,
                               n_estimators=classifier.n_estimators+newEstimators,
                               oob_score=True, class_weight=class_weights)
-    else: 
-        classifier.set_params(warm_start=True,n_estimators=newEstimators, 
+    else:
+        classifier.set_params(warm_start=True, n_estimators=newEstimators,
                               class_weight=class_weights)
         classifier.oob_score=-1
     classifier.fit(X, y)
@@ -147,7 +147,7 @@ def separateTrainTest(listcsv, listjpg):
 
 # create list of jpgs in a folder
 def enumerateJPGFromFolder(mypath):
-    onlyjpgs = [f for f in listdir(mypath) if (isfile(join(mypath, f)) &  splitext(f)[1]== '.jpg')]
+    onlyjpgs = [f for f in listdir(mypath) if isfile(join(mypath, f) & splitext(f)[1] == '.jpg')]
     return onlyjpgs
 
 
@@ -234,8 +234,8 @@ def markRandomLocations(img, windowSize, stepSize=1, P=1):
         col_ix = []
         col_winds =[]        
         for c in range(margin_col, ncols-margin_col, stepSize):           
-           outputProbability[r, c] = np.random.rand(1)*(P/100.0+0.5) ## very low chance to fire 
-           outputBinary[r, c] = outputProbability[r, c]>=0.5
+            outputProbability[r, c] = np.random.rand(1)*(P/100.0+0.5) ## very low chance to fire 
+            outputBinary[r, c] = outputProbability[r, c] >= 0.5
             #print r
 
     return outputBinary, outputProbability
@@ -249,8 +249,8 @@ def distancetoSet(mCord, setCoord):
     # this thing is a list, gtlist convert it to array
     setCoord = np.asarray(setCoord)
     # print setCoord, np.shape(setCoord)
-    setY = np.float32(setCoord[:,0])
-    setX = np.float32(setCoord[:,1])
+    setY = np.float32(setCoord[:, 0])
+    setX = np.float32(setCoord[:, 1])
 
     difx = (mx-setX)*(mx-setX)
     dify = (my-setY)*(my-setY)
@@ -272,8 +272,8 @@ def labelAndEvaluateOutput(binaryOutput, gtlist):
         fp --
         fn --slidingWindow
     """
-    labeledImg = label(binaryOutput, background =0)
-    calcMeasures = regionprops(labeledImg, cache = True)
+    labeledImg = label(binaryOutput, background=0)
+    calcMeasures = regionprops(labeledImg, cache=True)
 
     listcentroids = np.array([prop.centroid for prop in calcMeasures], dtype='int')
     # centroids come Y, X
@@ -302,17 +302,16 @@ def labelAndEvaluateOutput(binaryOutput, gtlist):
             else:
                 trueHit.append(detectedCentroid)
                 print "gt {0} allready detected".format(u)
-            # TODO HERE
 
         elif distance2GTList[u] > DISTANCETHRESHOLD * 2: # put a large margin around the gt.
             falsePos.append(detectedCentroid)
 
-    falseNeg = [gtlist[i] for i in missedGTIndex ]
-    return trueHit,truePos,falsePos,falseNeg
+    falseNeg = [gtlist[i] for i in missedGTIndex]
+    return trueHit, truePos, falsePos, falseNeg
 
 
 ############################################################################
-def overlayandPlotEvalution(img, tp = [], hit = [], falsepos = [], missed = [], rectW = WINDOWSIZE, rectH = WINDOWSIZE ):
+def overlayandPlotEvalution(img, tp=[], hit=[], falsepos=[], missed=[], rectW=WINDOWSIZE, rectH=WINDOWSIZE):
     # all of them are supposed to be a list of arrays as coords x,y
     fig = plt.figure()
     ax = fig.gca()
@@ -324,7 +323,7 @@ def overlayandPlotEvalution(img, tp = [], hit = [], falsepos = [], missed = [], 
         minr = pt[0]-hH
 
         rect = mpatches.Rectangle((minc, minr), rectH, rectW,
-                              fill=False, edgecolor='green', linewidth=3)
+                                  fill=False, edgecolor='green', linewidth=3)
         ax.add_patch(rect)
 
     for pt in hit:
@@ -332,7 +331,7 @@ def overlayandPlotEvalution(img, tp = [], hit = [], falsepos = [], missed = [], 
         minr = pt[0] - hW
 
         rect = mpatches.Rectangle((minc, minr), rectH, rectW,
-                              fill=False, edgecolor='blue', linewidth=2, linestyle = 'dotted')
+                              fill=False, edgecolor='blue', linewidth=2, linestyle='dotted')
         ax.add_patch(rect)
     reduced_set = np.random.permutation(len(falsepos))
 
@@ -346,7 +345,7 @@ def overlayandPlotEvalution(img, tp = [], hit = [], falsepos = [], missed = [], 
         minr = pt[0]-2
 
         rect = mpatches.Rectangle((minc, minr), 6, 6,
-                              fill=True, edgecolor='cyan', linewidth=1)
+                                  fill=True, edgecolor='cyan', linewidth=1)
         ax.add_patch(rect)
 
     for pt in missed:
@@ -354,17 +353,17 @@ def overlayandPlotEvalution(img, tp = [], hit = [], falsepos = [], missed = [], 
         minr = pt[0]-hW
 
         rect = mpatches.Rectangle((minc, minr), rectH, rectW,
-                              fill=False, edgecolor='yellow', linewidth=3, linestyle = 'dashed')
+                                  fill=False, edgecolor='yellow', linewidth=3, linestyle='dashed')
         ax.add_patch(rect)
-    ax.annotate('TP', xy=(2000, 50), color='green', weight='heavy', size='large' )
+    ax.annotate('TP', xy=(2000, 50), color='green', weight='heavy', size='large')
     ax.annotate('Hit', xy=(2000, 150), color='blue', weight='heavy', size='large')
     ax.annotate('False', xy=(2000, 250), color='cyan', weight='heavy', size='large')
     ax.annotate('Missed', xy=(2000, 350), color='yellow', weight='heavy', size='large')
     plt.show()
 
 #############################################################################
-def collectSamples(img, posList = [], negList = [], rectW = WINDOWSIZE,
-                   rectH = WINDOWSIZE, multiScale=[1.0]):
+def collectSamples(img, posList=[], negList=[], rectW=WINDOWSIZE,
+                   rectH=WINDOWSIZE, multiScale=[1.0]):
 
     posWindows = []
     negWindows = []
@@ -496,8 +495,7 @@ def testImages(clf, testjpg, testcsv=None, stepSize=1, scales=[1.0],
 
         if saveOutput:
             print "not ready yet"
-            
-    
+               
     return listnTp, listnFp
     
 def createTrainingSetFromScratch(clf=None, sampleFileX=TRAININGFILEX,
